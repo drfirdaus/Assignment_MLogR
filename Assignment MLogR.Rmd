@@ -362,12 +362,7 @@ Hence, we choose multivariable model without interaction (mlr.main) as our preli
 # Prediction
 
 We will predict the :\
-1. estimated log odds
-2. probabilities
-3. residuals
-4. hat values
-5. Cooks distance
-6. standardized residuals
+1. estimated log odds 2. probabilities 3. residuals 4. hat values 5. Cooks distance 6. standardized residuals
 
 As of now, our preliminary final model is mlr.main
 
@@ -375,7 +370,7 @@ As of now, our preliminary final model is mlr.main
 prelim.final.m <- mlr.main
 ```
 
-###  Predict the log odds
+### Predict the log odds
 
 ```{r}
 tidy(prelim.final.m, conf.int = TRUE)
@@ -403,7 +398,7 @@ prob.chd <- fitted(prelim.final.m)
 head(prob.chd)
 ```
 
-###  Predict & Proving Manually the log-odds, odds, OR and probability
+### Predict & Proving Manually the log-odds, odds, OR and probability
 
 ```{r}
 summary(prelim.final.m)
@@ -535,4 +530,57 @@ Log Odds = -7.139283 + 0.497630(gendermale) + 0.071868 (age) + 0.019649(cigsPerD
 
 ```{r}
 -7.139283 + (0.497630*1) + (0.071868*32) + (0.019649*0)+ (0.610469*1) + (0.724899*0) + (0.002504*113) + (0.015248*15.54) + (0.349057*0)
+```
+
+# **Model checking**
+
+## Model Checking
+
+### Check overall fitness:
+
+1.  Accuracy
+2.  Sensitivity
+3.  SPecificity
+
+### Linearity in logits
+
+by using:
+
+• area under the curve
+
+• Hosmer-Lemeshow test
+
+• modidied Hosmer-Lemeshow test
+
+• Oseo Rojek test
+
+#### Hosmer-Lemeshow Test
+
+```{r}
+# Assuming 'model' is your logistic regression model
+library(ResourceSelection)
+hoslem.test(Data1$TenYearCHD, fitted(prelim.final.m), g = 10)  # Adjust 'g' as needed
+
+```
+
+P value is \<0.001, hence model shows good fit
+
+#### Area under the Curve (ROC)
+
+```{r}
+# Assuming 'model' is your logistic regression model
+library(pROC)
+roc_curve <- roc(TenYearCHD ~ predict(prelim.final.m, type = "response"), data = Data1)
+auc(roc_curve)
+plot(roc_curve)
+
+```
+
+```{r}
+library(devtools)
+install_url('https://cran.r-project.org/src/contrib/Archive/gof/gof_1.0.1.tar.gz')
+```
+
+```{r}
+install_url('https://cran.r-project.org/src/contrib/Archive/LogisticDx/LogisticDx_0.3.tar.gz')
 ```

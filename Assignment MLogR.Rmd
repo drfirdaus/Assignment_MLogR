@@ -4,3 +4,288 @@ author: "Ahmad Firdaus Mohamed"
 date: "2023-12-19"
 output: html_document
 ---
+
+# Prepare Environment
+
+## Load Library
+
+```{r}
+library(tidyverse)
+library(gtsummary)
+library(haven)
+library(broom)
+library(knitr)
+library(tidyr)
+library(ggplot2)
+```
+
+## Read data
+
+```{r}
+Data1<-read_sav("FraminghamTrue.sav")
+```
+
+# Data Wrangling
+
+## Summary data
+
+```{r}
+summary(Data1)
+```
+
+```{r}
+glimpse(Data1)
+```
+
+## Transform Data
+
+```{r}
+Data1 <- Data1 %>%
+  mutate(across(where(is.labelled), as_factor)) %>%
+  mutate(glucose = as.integer(glucose))
+
+summary(Data1)
+```
+
+## Remove Missing Data
+
+```{r}
+#Data2 <- Data1 %>%
+  #na.omit()
+#summary(Data2)
+```
+
+```{r}
+# Assuming your filename is "Data2.sav"
+#file_path <- "C:/Users/drfir/OneDrive/Desktop/Data2.sav"
+
+# Save the data frame to the specified file
+#haven::write_sav(Data2, file_path)
+
+```
+
+## Summary in table
+
+```{r}
+Descriptive.tbl <- tbl_summary(by = TenYearCHD ,Data1)
+Descriptive.tbl
+```
+
+```{r}
+Descriptive.tbl2 <- tbl_summary(by = TenYearCHD, statistic = list(all_continuous() ~ "{mean}({sd})", all_categorical()~"{n} / {N} ({p}%)") ,Data1)
+Descriptive.tbl2
+```
+
+## Explore Data
+
+Histogram for numerical & barplot for categorical
+
+Numerical : Age, CigPerday, totchol, SBP, DBP, BMI, HR, glucose
+
+Categorical : Gender, Education, current smoker, BPmeds, PrevStroke, PrevHPT, DMstat, TenYearCHD
+
+Age
+
+```{r}
+Data1 %>%
+  ggplot(aes(age)) + geom_histogram() + facet_grid(. ~TenYearCHD)
+```
+
+CigPerday
+
+```{r}
+Data1 %>%
+  ggplot(aes(cigsPerDay)) + geom_histogram() + facet_grid(. ~TenYearCHD)
+```
+
+Total chol
+
+```{r}
+Data1 %>%
+  ggplot(aes(totChol)) + geom_histogram() + facet_grid(. ~TenYearCHD)
+```
+
+SBP
+
+```{r}
+Data1 %>%
+  ggplot(aes(sysBP)) + geom_histogram() + facet_grid(. ~TenYearCHD)
+```
+
+DBP
+
+```{r}
+Data1 %>%
+  ggplot(aes(diaBP)) + geom_histogram() + facet_grid(. ~TenYearCHD)
+```
+
+BMI
+
+```{r}
+Data1 %>%
+  ggplot(aes(BMI)) + geom_histogram() + facet_grid(. ~TenYearCHD)
+```
+
+Heart Rate
+
+```{r}
+Data1 %>%
+  ggplot(aes(heartRate)) + geom_histogram() + facet_grid(. ~TenYearCHD)
+```
+
+Glucose
+
+```{r}
+Data1 %>%
+  ggplot(aes(glucose)) + geom_histogram() + facet_grid(. ~TenYearCHD)
+```
+
+Gender
+
+```{r}
+Data1 %>%
+  ggplot(aes(gender)) + geom_bar() + facet_grid(. ~TenYearCHD)
+```
+
+Education
+
+```{r}
+Data1 %>%
+  ggplot(aes(education)) + geom_bar() + facet_grid(. ~TenYearCHD)
+```
+
+Current Smoker
+
+```{r}
+Data1 %>%
+  ggplot(aes(currentSmoker)) + geom_bar() + facet_grid(. ~TenYearCHD)
+```
+
+BP Meds
+
+```{r}
+Data1 %>%
+  ggplot(aes(BPMeds)) + geom_bar() + facet_grid(. ~TenYearCHD)
+```
+
+Prevalent Stroke
+
+```{r}
+Data1 %>%
+  ggplot(aes(prevalentStroke)) + geom_bar() + facet_grid(. ~TenYearCHD)
+```
+
+Prevalent HPT
+
+```{r}
+Data1 %>%
+  ggplot(aes(prevalentHyp)) + geom_bar() + facet_grid(. ~TenYearCHD)
+```
+
+DM Status
+
+```{r}
+Data1 %>%
+  ggplot(aes(diabetes)) + geom_bar() + facet_grid(. ~TenYearCHD)
+```
+
+Ten Year CHD
+
+```{r}
+Data1 %>%
+  ggplot(aes(TenYearCHD)) + geom_bar()
+```
+
+## Checking Correlation
+
+```{r}
+#Data1 %>% 
+ # select(-gender, -education, -currentSmoker, -BPMeds, -prevalentStroke, -diabetes, -TenYearCHD, -prevalentHyp) %>% 
+  #ggpairs()
+```
+
+```{r}
+Data2 <- 
+  Data1 %>%
+  select(where(is.numeric))
+cor.Data2 <-
+  cor(Data2, use = "complete.obs", method = "pearson")
+head(round(cor.Data2,2))
+corrplot(cor.Data2)
+```
+
+```{r}
+#cor.Data2 <-
+#  cor(Data2, use = "complete.obs", method = "pearson")
+#head(round(cor.Data2,2))
+```
+
+```{r}
+#corrplot(cor.Data2)
+```
+
+# **Estimation**
+
+## Simple Logistic Regression
+
+Based on literature review, these are the selected variable for study
+
+Outcome : Ten Year Risk Developing CHD
+
+Numerical : Age, total chol, BMI
+
+Categorical : HPT,DM, gender, current smoking status
+
+```{r}
+slr_CHD = glm(TenYearCHD ~ 1, data = Data1, family = binomial(link = "logit"))
+summary(slr_CHD)
+```
+
+```{r}
+slr_CHD0 = glm(TenYearCHD ~ 1, data = Data1, family = binomial(link = "logit")) 
+add1(slr_CHD0, scope = ~ gender + age + education + currentSmoker + cigsPerDay + BPMeds + prevalentStroke + prevalentHyp + diabetes + totChol + sysBP + diaBP + BMI + heartRate + glucose,test = "LRT")
+```
+
+```{r}
+slr.age <- glm(TenYearCHD ~ age)
+```
+
+### Create Table Summary for SLogR
+
+```{r}
+tbl_uvregression(Data1, method = glm, y = TenYearCHD, method.args = list(family=binomial), exponentiate = TRUE) %>%
+  add_n(location = "level") %>%
+  bold_labels()%>%
+  italicize_levels()
+```
+
+## Multiple Logistic Regression
+
+### Model Without Interaction
+
+```{r}
+mlr.main <- glm(TenYearCHD ~ gender + age + cigsPerDay + prevalentHyp + diabetes + totChol + BMI , family = binomial(link="logit"), data=Data1)
+summary(mlr.main)
+tidy(mlr.main)
+tidy(mlr.main, exponentiate = TRUE)
+```
+
+Table MLogR
+
+```{r}
+tbl_regression(mlr.main, exponentiate = TRUE) %>%
+  add_n(location = "level") %>%
+  bold_labels()%>%
+  italicize_levels()
+```
+
+### Model with Interaction
+
+Interaction chosen : total chol \* HPT
+
+```{r}
+mlr.main.ia <- glm(TenYearCHD ~ gender + age + cigsPerDay + prevalentHyp + diabetes + totChol + BMI + totChol:prevalentHyp , family = binomial(link="logit"), data=Data1)
+summary(mlr.main.ia)
+tidy(mlr.main.ia)
+tidy(mlr.main.ia, exponentiate = TRUE)
+```

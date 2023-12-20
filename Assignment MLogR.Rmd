@@ -17,6 +17,7 @@ library(broom)
 library(knitr)
 library(tidyr)
 library(ggplot2)
+library(corrplot)
 ```
 
 ## Read data
@@ -247,7 +248,7 @@ add1(slr_CHD0, scope = ~ gender + age + education + currentSmoker + cigsPerDay +
 ```
 
 ```{r}
-slr.age <- glm(TenYearCHD ~ age)
+slr.age <- glm(TenYearCHD ~ age, data = Data1, family = binomial(link = "logit"))
 ```
 
 ### Create Table Summary for SLogR
@@ -264,7 +265,7 @@ tbl_uvregression(Data1, method = glm, y = TenYearCHD, method.args = list(family=
 ### Model Without Interaction
 
 ```{r}
-mlr.main <- glm(TenYearCHD ~ gender + age + cigsPerDay + prevalentHyp + diabetes + totChol + BMI , family = binomial(link="logit"), data=Data1)
+mlr.main <- glm(TenYearCHD ~ gender + age + cigsPerDay + prevalentHyp + diabetes + totChol + BMI  , family = binomial(link="logit"), data=Data1)
 summary(mlr.main)
 tidy(mlr.main)
 tidy(mlr.main, exponentiate = TRUE)

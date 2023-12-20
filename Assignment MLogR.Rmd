@@ -215,6 +215,8 @@ head(round(cor.Data2,2))
 corrplot(cor.Data2)
 ```
 
+From the correlation plot, the SBP and DBP are highly correlated
+
 ```{r}
 #cor.Data2 <-
 #  cor(Data2, use = "complete.obs", method = "pearson")
@@ -225,6 +227,51 @@ corrplot(cor.Data2)
 #corrplot(cor.Data2)
 ```
 
+## Causal Diagram
+
+```{r}
+myDAG <- dagitty( 'dag {
+bb="0,0,1,1"
+"Anti-Hypertensive Medication" [pos="0.602,0.881"]
+"Smoking Status" [pos="0.743,0.775"]
+"Total Cholesterol" [pos="0.302,0.122"]
+Age [pos="0.541,0.072"]
+BMI [pos="0.700,0.190"]
+CHD [outcome,pos="0.817,0.482"]
+Diabetes [exposure,pos="0.092,0.449"]
+Gender [pos="0.185,0.754"]
+Hypertension [pos="0.359,0.897"]
+"Anti-Hypertensive Medication" -> CHD
+"Anti-Hypertensive Medication" <-> Hypertension
+"Smoking Status" -> CHD
+"Smoking Status" -> Hypertension
+"Total Cholesterol" -> CHD
+"Total Cholesterol" -> Hypertension
+Age -> CHD
+Age -> Diabetes
+Age -> Hypertension
+BMI -> "Total Cholesterol"
+BMI -> CHD
+BMI -> Hypertension
+BMI <-> Diabetes
+Diabetes -> "Total Cholesterol"
+Diabetes -> CHD
+Diabetes -> Hypertension
+Gender -> "Smoking Status"
+Gender -> "Total Cholesterol"
+Gender -> CHD
+Gender -> Diabetes
+Gender -> Hypertension
+Hypertension -> CHD
+}'
+ )
+plot( myDAG )
+```
+
+From the DAG, the exposure studied is Diabetes (diabetes) and the outcome of interest is developement of Coronoray Heart Disease (TenYearCHD).
+
+We identified the confounders are Age (age), BMI (BMI) and gender (gender). Meanwhile the mediators are Total Cholesterol(totChol), Hypertension (prevalentHyp) and Anti-Hypertension Medication (BPMeds).
+
 # **Estimation**
 
 ## Simple Logistic Regression
@@ -233,9 +280,9 @@ Based on literature review, these are the selected variable for study
 
 Outcome : Ten Year Risk Developing CHD
 
-Numerical : Age, total chol, BMI
+Numerical : Age, total chol, BMI, sbp, dbp,glucose, CigsPerDay, heartRate
 
-Categorical : HPT,DM, gender, current smoking status
+Categorical : HPT,DM, gender, current smoking status, BPMeds, education, prevalentStroke
 
 ```{r}
 slr_CHD = glm(TenYearCHD ~ 1, data = Data1, family = binomial(link = "logit"))
@@ -265,13 +312,13 @@ tbl_uvregression(Data1, method = glm, y = TenYearCHD, method.args = list(family=
 ### Model Without Interaction
 
 ```{r}
-mlr.main <- glm(TenYearCHD ~ gender + age + cigsPerDay + prevalentHyp + diabetes + totChol + BMI  , family = binomial(link="logit"), data=Data1)
+mlr.main <- glm(TenYearCHD ~ gender + age + cigsPerDay + prevalentHyp + diabetes + totChol + BMI + BPMeds , family = binomial(link="logit"), data=Data1)
 summary(mlr.main)
 tidy(mlr.main)
 tidy(mlr.main, exponentiate = TRUE)
 ```
 
-Table MLogR
+Table MLogR without interaction
 
 ```{r}
 tbl_regression(mlr.main, exponentiate = TRUE) %>%
@@ -285,8 +332,207 @@ tbl_regression(mlr.main, exponentiate = TRUE) %>%
 Interaction chosen : total chol \* HPT
 
 ```{r}
-mlr.main.ia <- glm(TenYearCHD ~ gender + age + cigsPerDay + prevalentHyp + diabetes + totChol + BMI + totChol:prevalentHyp , family = binomial(link="logit"), data=Data1)
+mlr.main.ia <- glm(TenYearCHD ~ gender + age + cigsPerDay + prevalentHyp + diabetes + totChol + BMI + BPMeds + totChol:prevalentHyp , family = binomial(link="logit"), data=Data1)
 summary(mlr.main.ia)
 tidy(mlr.main.ia)
 tidy(mlr.main.ia, exponentiate = TRUE)
+```
+
+Table MLogR with interaction
+
+```{r}
+tbl_regression(mlr.main.ia, exponentiate = TRUE) %>%
+  add_n(location = "level") %>%
+  bold_labels()%>%
+  italicize_levels()
+```
+
+### Model Selection
+
+Comparing using Anova
+
+```{r}
+anova(mlr.main,mlr.main.ia, test = 'Chisq')
+```
+
+From the ANOVA The p-value (Pr(\>F)) is greater than the typical significance level of 0.05. This suggests there is no difference between the two models.
+
+Hence, we choose multivariable model without interaction (mlr.main) as our preliminary Final Model for Linear Regression due to model with the least variable is parsimonious model.
+
+# Prediction
+
+We will predict the :\
+1. estimated log odds
+2. probabilities
+3. residuals
+4. hat values
+5. Cooks distance
+6. standardized residuals
+
+As of now, our preliminary final model is mlr.main
+
+```{r}
+prelim.final.m <- mlr.main
+```
+
+###  Predict the log odds
+
+```{r}
+tidy(prelim.final.m, conf.int = TRUE)
+```
+
+### Predicted Odds
+
+```{r}
+tidy(prelim.final.m, exponentiate = TRUE, conf.int = TRUE)
+```
+
+### Fitted values
+
+Probability of CHD
+
+```{r}
+augment(prelim.final.m, 
+        type.predict = 'response') ##the type predict = response will change it from log odds terus jadi probaility. sama macam formula fitted kat bawah
+```
+
+Probality using Another Method
+
+```{r}
+prob.chd <- fitted(prelim.final.m)
+head(prob.chd)
+```
+
+###  Predict & Proving Manually the log-odds, odds, OR and probability
+
+```{r}
+summary(prelim.final.m)
+```
+
+From here, our equation will be
+
+Log Odds = -7.139283 + 0.497630(gendermale) + 0.071868 (age) + 0.019649(cigsPerDay)+ 0.610469(prevalentHyp) + 0.724899(diabetes) + 0.002504(totChol) + 0.015248(BMI) + 0.349057(BPMeds)
+
+```{r}
+head(model.matrix(prelim.final.m))
+```
+
+For the first observation
+
+1.  gendermale = 1
+
+2.  age = 39
+
+3.  cigsPerDay = 0
+
+4.  prevalentHyp = 0
+
+5.  diabetes = 0
+
+6.  totChol = 195
+
+7.  BMI = 26.97
+
+8.  BPMeds = 0
+
+```{r}
+l.o.chd.link <- predict(prelim.final.m, type = 'link')
+l.o.chd.term <- predict(prelim.final.m, type = 'term')
+l.o.chd.prob <- predict(prelim.final.m, type = 'response')
+
+##Link Scale (type = 'link'): Gives predictions on the log-odds scale.
+
+#Linear Predictor (type = 'term'): Provides the raw linear combination of variables without transformation.
+
+#Response Scale (type = 'response'): Gives predicted probabilities on the scale of the outcome variable.
+```
+
+```{r}
+head(l.o.chd.link)
+```
+
+From here, the R calculated Log Odds for first observation is -2.9391689
+
+```{r}
+head(l.o.chd.term)
+```
+
+```{r}
+head(l.o.chd.prob)
+```
+
+So to prove Log Odds for first observation =-2.9391689, we will use the equation above\
+
+```{r}
+-7.139283 + (0.497630*1) + (0.071868*39) + (0.019649*0)+ (0.610469*0) + (0.724899*0) + (0.002504*195) + (0.015248*26.97) + (0.349057*0)
+```
+
+So the odds for the first observation is\
+
+```{r}
+exp(-2.939282)
+```
+
+So, the probability for this is\
+prob = odds/1+odds
+
+```{r}
+0.0529037 / (1+0.0529037)
+```
+
+```{r}
+augment(prelim.final.m, 
+        type.predict = 'response', 
+        type.residuals = 'pearson')
+```
+
+### Prediction for new data
+
+First, we create new data set based on the summary of our model
+
+```{r}
+summary(model.matrix(prelim.final.m))
+```
+
+\
+
+```{r}
+newdata1 <- expand.grid(age = seq(from = 32, to = 70, by = 10),
+                       totChol = seq(from = 113, to = 400, by = 50),
+                       diabetes = c('no dm', 'dm'),
+                       gender = c('male', 'female'),
+                       cigsPerDay = seq(from = 0, to = 70),
+                       prevalentHyp = c('hpt', 'no hpt'),
+                       BMI = seq(from = 15.54, to = 56.80, by=10),
+                       BPMeds = c('not on hypertensive medication', 'on hypertensive medication'),
+                       TenYearCHD = c('no chd', 'chd'))
+```
+
+And now, we can make prediction
+
+-   using `type = 'link'` to generate predicted values for logits exp (Odss)
+
+-   using `type = response` to generate predicted values based on probabilites
+
+```{r}
+mlr.main.newdata1 <- glm(TenYearCHD ~ age + totChol + diabetes + gender + cigsPerDay + prevalentHyp + BMI + + BPMeds, family = binomial(link = "logit"), data = newdata1)
+summary(mlr.main.newdata1)
+```
+
+Predict
+
+```{r}
+predict(prelim.final.m, newdata = newdata1, type.predict = 'link')
+```
+
+```{r}
+augment(prelim.final.m, newdata = newdata1)
+```
+
+We retest with our log odds equation for first observation in new data
+
+Log Odds = -7.139283 + 0.497630(gendermale) + 0.071868 (age) + 0.019649(cigsPerDay)+ 0.610469(prevalentHyp) + 0.724899(diabetes) + 0.002504(totChol) + 0.015248(BMI) + 0.349057(BPMeds)
+
+```{r}
+-7.139283 + (0.497630*1) + (0.071868*32) + (0.019649*0)+ (0.610469*1) + (0.724899*0) + (0.002504*113) + (0.015248*15.54) + (0.349057*0)
 ```

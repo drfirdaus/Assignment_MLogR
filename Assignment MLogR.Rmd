@@ -576,11 +576,128 @@ plot(roc_curve)
 
 ```
 
+#### Diagnostic Plot
+
 ```{r}
-library(devtools)
-install_url('https://cran.r-project.org/src/contrib/Archive/gof/gof_1.0.1.tar.gz')
+plot(prelim.final.m)
+```
+
+From the Pearson residual plots, we can identify there are influential outliers greater than +2
+
+The studentized residual plots, we can also noted there are outliers greater than +2, the leverage are higher than +2 suggests presence of influential outliers
+
+Hence, these outliers observations may affect considerably our logistic regression model.
+
+##### Identify Influentials outliers
+
+Need to identify influentials obs,
+
+```{r}
+# Assuming you have a linear regression model named 'your_model' and the data frame is named 'original_data'
+# your_model <- lm(y ~ x1 + x2, data = original_data)
+
+# Calculate influence measures
+infl <- influence.measures(prelim.final.m)
+infl.val <- data.frame(infl$infmat)
+
+# Set a threshold for Cook's distance deviations
+cutoff_value <- 4/3656
+
+# Filter out influential observations
+filtered_data <- Data1 |> filter(infl.val$cook.d <= cutoff_value)
+
+
+# Fit the logistic regression model again using the filtered data
+mlr.filtered.influential <- glm(TenYearCHD ~ gender + age + cigsPerDay + prevalentHyp + diabetes + totChol + BMI + BPMeds, family = binomial(link="logit"), data = filtered_data)
+
+# Compare model summaries
+summary(mlr.filtered.influential)
+summary(prelim.final.m)
 ```
 
 ```{r}
-install_url('https://cran.r-project.org/src/contrib/Archive/LogisticDx/LogisticDx_0.3.tar.gz')
+tidy(prelim.final.m, conf.int = TRUE)
+tidy(prelim.final.m, exponentiate = TRUE)
 ```
+
+```{r}
+tidy(mlr.filtered.influential, conf.int = TRUE)
+tidy(mlr.filtered.influential, exponentiate = TRUE)
+```
+
+### Reperform Model fitness
+
+#### Hosmer-Lemeshow Test
+
+```{r}
+# Assuming 'model' is your logistic regression model
+library(ResourceSelection)
+hoslem.test(filtered_data$TenYearCHD, fitted(mlr.filtered.influential), g = 10)  # Adjust 'g' as needed
+```
+
+P value \<0.001, the filtered influential model maintains its model fitness.
+
+#### Area under the Curve (ROC)
+
+```{r}
+# Assuming 'model' is your logistic regression model
+library(pROC)
+roc_curve.remove.inf <- roc(TenYearCHD ~ predict(mlr.filtered.influential, type = "response"), data = filtered_data)
+auc(roc_curve.remove.inf)
+plot(roc_curve.remove.inf)
+```
+
+Area under Receiver of Operating Characteristic Curve (AUC-ROC):
+
+After model remodelling AUC-ROC is 82.26%, the model has improved to good discriminating effect.
+
+### Reperform Diagnostic plots
+
+```{r}
+plot(mlr.filtered.influential)
+```
+
+Most residuals appear to be falling within greater -/+ 2, lesser influentials observation.
+
+#### Compare between model without influential and preliminary final model(with influentials)
+
+To identify the difference between B coefficients between these 2 models
+
+```{r}
+tidy(prelim.final.m, exponentiate = TRUE)
+tidy(mlr.filtered.influential, exponentiate = TRUE)
+```
+
+Prelim Final Model --\> B for age is 1.07, where as Filtered Model --\> B for age is 1.14 Due to the influentials, there are significant changes of B under diabetes status.
+
+# Interpretation
+
+Hence, the final model will be:
+
+```{r}
+Final.Model <- mlr.filtered.influential
+tidy(Final.Model, exponentiate = TRUE)
+```
+
+```{r}
+tbl_regression(Final.Model, exponentiate = TRUE) %>%
+  add_n(location = "level") %>%
+  bold_labels() %>%
+  italicize_levels() %>%
+  as_gt() %>%
+  gt::tab_header(title = "Table 3. Multiple Logistic Regression (Final Model)")
+```
+
+## Model Equation
+
+Ten Years risk of CHD = (0.0000175) + 2.36(gender) + 1.14(age) + 1.02(cigsperday) + 2.12(prevalentHyp + 0.196(diabetes) + 1.00(totchol) + 1.02(BMI))
+
+### Interpretation:
+
+Gender, Age, Number of cigarette smoked per day, hypertension status have significant association to CHD.
+
+1.  Men has 2.36 time the odds compared to women to develop CHD (95% CI:1.75,3.19) when adjusted to age, cigperday, hypertension status \@ being male has higher chance (36%) of developing CHD compared to female when adjusted to age, cigperday, hypertension status.
+2.  Every 1 year increase of age, has 1.14 time the odds of developing CHD (95% CI: 1.11,1.16) when adjusted to gender, cigperday, hypertension status.
+3.  Every 1 stick of cigarette per day, has 1.02 time the odds of developing CHD (95% CI 1.01,1.03) when adjusted to gender, age, hypertension status
+4.  Those who diagnosed with hypertension, has 2.12 time the odds of developing CHD (95% CI 1.60,2.80) when adjusted to gender, age, cigperday.
+5.  Diabetes status, total cholesterol level, BMI and on Hypertensive medications or not, are not statistically significant association to developing CHD after adjusted to all other variables.
